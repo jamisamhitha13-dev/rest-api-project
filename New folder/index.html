@@ -1,0 +1,269 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REST API To-Do App</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #dbeafe, #ede9fe);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 25px #00000020;
+        }
+
+        h1 {
+            text-align: center;
+            color: #4338ca;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            flex: 1;
+            min-width: 0;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        button {
+            border: none;
+            padding: 11px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .add-btn {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .add-btn:hover {
+            background: #3730a3;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 22px;
+        }
+
+        li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #f3f4f6;
+            border-radius: 8px;
+        }
+
+        .task-title {
+            flex: 1;
+            overflow-wrap: anywhere;
+        }
+
+        .completed {
+            text-decoration: line-through;
+            color: #888;
+        }
+
+        .done-btn {
+            background: #16a34a;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #dc2626;
+            color: white;
+        }
+
+        #message {
+            color: #dc2626;
+            text-align: center;
+            margin-top: 12px;
+        }
+
+        .count {
+            color: #555;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>My To-Do List</h1>
+        <p class="subtitle">REST API Based Task Manager</p>
+
+        <form id="taskForm" class="input-group">
+            <input
+                type="text"
+                id="taskInput"
+                placeholder="Enter your task..."
+                required
+            >
+            <button class="add-btn" type="submit">Add</button>
+        </form>
+
+        <p id="message"></p>
+        <ul id="taskList"></ul>
+        <p class="count" id="count"></p>
+    </div>
+
+    <script>
+        const API = "/api/tasks";
+
+        async function loadTasks() {
+            try {
+                const response = await fetch(API);
+                if (!response.ok) throw new Error("Could not load tasks");
+
+                const tasks = await response.json();
+                const list = document.getElementById("taskList");
+                list.innerHTML = "";
+
+                tasks.forEach(task => {
+                    const li = document.createElement("li");
+
+                    const title = document.createElement("span");
+                    title.className = "task-title";
+                    title.textContent = task.title;
+
+                    if (task.completed) {
+                        title.classList.add("completed");
+                    }
+
+                    const doneButton = document.createElement("button");
+                    doneButton.className = "done-btn";
+                    doneButton.textContent =
+                        task.completed ? "Undo" : "Done";
+
+                    doneButton.onclick = () => updateTask(task);
+
+                    const deleteButton = document.createElement("button");
+                    deleteButton.className = "delete-btn";
+                    deleteButton.textContent = "Delete";
+                    deleteButton.onclick = () => deleteTask(task.id);
+
+                    li.append(title, doneButton, deleteButton);
+                    list.appendChild(li);
+                });
+
+                const completed = tasks.filter(t => t.completed).length;
+                document.getElementById("count").textContent =
+                    `Total: ${tasks.length} | Completed: ${completed}`;
+
+            } catch (error) {
+                showMessage("Unable to connect to the server.");
+            }
+        }
+
+        document.getElementById("taskForm").addEventListener(
+            "submit", async function(event) {
+                event.preventDefault();
+
+                const input = document.getElementById("taskInput");
+                const title = input.value.trim();
+
+                if (!title) return;
+
+                try {
+                    const response = await fetch(API, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ title })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.error || "Could not add task");
+                    }
+
+                    input.value = "";
+                    showMessage("");
+                    loadTasks();
+
+                } catch (error) {
+                    showMessage(error.message);
+                }
+            }
+        );
+
+        async function updateTask(task) {
+            try {
+                const response = await fetch(`${API}/${task.id}`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        completed: !task.completed
+                    })
+                });
+
+                if (!response.ok) throw new Error("Update failed");
+                loadTasks();
+
+            } catch (error) {
+                showMessage(error.message);
+            }
+        }
+
+        async function deleteTask(id) {
+            try {
+                const response = await fetch(`${API}/${id}`, {
+                    method: "DELETE"
+                });
+
+                if (!response.ok) throw new Error("Delete failed");
+                loadTasks();
+
+            } catch (error) {
+                showMessage(error.message);
+            }
+        }
+
+        function showMessage(message) {
+            document.getElementById("message").textContent = message;
+        }
+
+        loadTasks();
+    </script>
+</body>
+</html>
